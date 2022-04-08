@@ -1,0 +1,15 @@
+Altered files:
+- Makefile
+- param.h
+- sysproc.c
+- syscall.c
+- syscall.h
+- proc.c
+- proc.h
+- user.h
+- usys.S
+
+Added files:
+- loop.c
+- pstat.h
+- schedtest.c
