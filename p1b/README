@@ -1,0 +1,11 @@
+Altered files:
+- Makefile
+- sysfile.c
+- proc.h
+- syscall.c
+- syscall.h
+- user.h
+- usys.S
+
+Added files:
+- sysios.c
