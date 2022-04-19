@@ -159,9 +159,11 @@ int
 growproc(int n)
 {
   uint sz;
+  uint old_sz;
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
+  old_sz = sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -170,6 +172,7 @@ growproc(int n)
       return -1;
   }
   curproc->sz = sz;
+  mencrypt((char*)old_sz, PGROUNDUP(n / PGSIZE));
   switchuvm(curproc);
   return 0;
 }
