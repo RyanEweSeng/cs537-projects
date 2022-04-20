@@ -87,10 +87,6 @@ exec(char *path, char **argv)
   if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;
 
-  // Encrypt pages (except the guard page)
-  mencrypt((char*)0, PGROUNDUP((sz-2*PGSIZE) / PGSIZE));
-  mencrypt((char*)sz-PGSIZE, PGROUNDUP(sz / PGSIZE)); 
-
   // Save program name for debugging.
   for(last=s=path; *s; s++)
     if(*s == '/')
@@ -104,6 +100,11 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
+
+  // Encrypt pages (skipping the guard page)
+  mencrypt((char*)0, PGROUNDUP((sz-2*PGSIZE) / PGSIZE));
+  mencrypt((char*)sz-PGSIZE, PGROUNDUP(sz / PGSIZE));
+
   freevm(oldpgdir);
   return 0;
 

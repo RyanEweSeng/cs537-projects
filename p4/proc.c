@@ -172,8 +172,8 @@ growproc(int n)
       return -1;
   }
   curproc->sz = sz;
-  mencrypt((char*)old_sz, PGROUNDUP(n / PGSIZE));
   switchuvm(curproc);
+  mencrypt((char*)old_sz, PGROUNDUP(n / PGSIZE));
   return 0;
 }
 
