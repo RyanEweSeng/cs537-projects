@@ -50,7 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   char* queue[CLOCKSIZE];
-  int queue_head;
+  int clock_hand;
   int queue_size;
 };
 
