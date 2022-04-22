@@ -197,7 +197,7 @@ int             getpgtable(struct pt_entry* entries, int num, int wsetOnly);
 int             dump_rawphymem(char *physical_addr, char * buffer);
 int             mdecrypt(char *virtual_addr);
 void            addQueue(char*);
-void            removeQueue(char*);
+int             removeQueue(char*);
 void            clearQueue(void);
 
 

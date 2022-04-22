@@ -176,7 +176,7 @@ growproc(int n)
       return -1;
     else
       for (int i = 0; i < (-n / PGSIZE); i++)
-        removeQueue((char*) (sz-i*PGSIZE));
+        if (removeQueue((char *) (sz - i * PGSIZE)) != 0) return -1;
   }
   curproc->sz = sz;
   switchuvm(curproc);

@@ -272,9 +272,9 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
     pte = walkpgdir(pgdir, (char*)a, 0);
-    if(!pte)
+    if(!pte) {
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
-    else if((*pte & (PTE_P | PTE_E)) != 0){
+    } else if((*pte & (PTE_P | PTE_E)) != 0){
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
@@ -486,8 +486,32 @@ void addQueue(char* virtual_addr) {
   return;
 }
 
-void removeQueue(char* virtual_addr) {
+int removeQueue(char* virtual_addr) {
+  struct proc* p = myproc();  
 
+  cprintf("before find index\n");
+  // find the index to remove
+  int location = -1;
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    if (p->queue[i] == virtual_addr) location = i;
+  }
+  
+  if (location != -1) {
+    // shift all elements to the left
+    int tail = p->clock_hand;
+    for (int i = location; i != tail; i = (i + 1) % CLOCKSIZE) {
+      p->queue[i] = p->queue[(i + 1) % CLOCKSIZE];
+    }
+
+    // clear entry and adjust clock hand
+    p->queue[tail] = (char*) -1;
+    if (p->clock_hand == 0) p->clock_hand = CLOCKSIZE - 1;
+    else p->clock_hand = p->clock_hand - 1;
+
+    return 0;
+  }
+
+  return -1;
 }
 
 int mdecrypt(char *virtual_addr) {
