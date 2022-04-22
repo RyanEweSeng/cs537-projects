@@ -421,6 +421,55 @@ char* translate_and_set(pde_t *pgdir, char *uva) {
   return (char*)P2V(PTE_ADDR(*pte));
 }
 
+void addToQueue(char* virtual_addr) {
+  struct proc* p = myproc();
+  pde_t* mypd = p->pgdir;
+  pte_t* pte = walkpgdir(mypd, virtual_addr, 0);
+ 
+  if (p->queue_size < CLOCKSIZE) { // if queue has space we just add
+    // add addr to the queue and update vars
+    p->queue[p->clock_hand] = virtual_addr;
+    p->clock_hand = (p->clock_hand + 1) % CLOCKSIZE;
+    p->queue_size++;
+
+    // set access bit
+    *pte = *pte | PTE_A;
+  } else { // else queue has no space and we have to evict
+    int i = p->clock_hand;
+
+    char* curr_addr = p->queue[i];
+    pde_t* curr_pd = p->pgdir;
+    pte_t* curr_pte = walkpgdir(curr_pd, curr_addr, 0);
+
+    // find a victim page
+    while ( *curr_pte & PTE_A ) { 
+      // clear the access bit (cold state)      
+      *curr_pte = *curr_pte & ~PTE_A;
+
+      // move clock hand
+      i = (i + 1) % CLOCKSIZE;
+      p->clock_hand = i;
+
+      // move to next entry in queue
+      curr_addr = p->queue[i];
+      curr_pd = p->pgdir;
+      curr_pte = walkpgdir(curr_pd, curr_addr, 0);
+    }
+
+    // encrypt victim page, clear P bit and set E bit (encrypted state)
+    mencrypt(curr_addr, 1);
+    *curr_pte = *curr_pte & ~PTE_P;
+    *curr_pte = *curr_pte | PTE_E;
+
+    // evict victim page and add new page
+    p->queue[i] = virtual_addr;
+
+    // set access bit
+    *pte = *pte | PTE_A;
+  }
+
+  return;
+}
 
 int mdecrypt(char *virtual_addr) {
   cprintf("p4Debug:  mdecrypt VPN %d, %p, pid %d\n", PPN(virtual_addr), virtual_addr, myproc()->pid);
@@ -451,6 +500,9 @@ int mdecrypt(char *virtual_addr) {
     *slider = *slider ^ 0xFF;
     slider++;
   }
+
+  addToQueue(virtual_addr);
+
   return 0;
 }
 

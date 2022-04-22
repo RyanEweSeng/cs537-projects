@@ -111,6 +111,10 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  
+  // Set up for clock algorithm
+  p->clock_hand = 0;
+  p->queue_size = 0;  
 
   return p;
 }
