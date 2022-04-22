@@ -32,7 +32,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -473,14 +473,14 @@ void addQueue(char* virtual_addr) {
       curr_pte = walkpgdir(p->pgdir, curr_addr, 0);
     }
 
-    // encrypt victim page, clear P bit and set E bit (encrypted state)
+    // encrypt victim page, clear P bit, set E bit, clear A bit (encrypted state)
     mencrypt(curr_addr, 1);
     *curr_pte = *curr_pte & ~PTE_P;
     *curr_pte = *curr_pte | PTE_E;
     *curr_pte = *curr_pte & ~PTE_A;
 
     // evict victim page and add new page
-    p->queue[i] = virtual_addr;
+    p->queue[p->clock_hand] = virtual_addr;
 
     // set access bit
     *pte = *pte | PTE_A;
@@ -490,8 +490,7 @@ void addQueue(char* virtual_addr) {
 }
 
 void removeQueue(char* virtual_addr) {
-  struct proc* p = myproc();
-  // TODO
+
 }
 
 int mdecrypt(char *virtual_addr) {
@@ -570,6 +569,9 @@ int mencrypt(char *virtual_addr, int len) {
       *slider = *slider ^ 0xFF;
       slider++;
     }
+
+    *mypte = *mypte & ~PTE_A;
+
     char * kvp_translated = translate_and_set(mypd, slider-PGSIZE);
     if (!kvp_translated) {
       cprintf("p4Debug: translate failed!");

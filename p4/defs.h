@@ -13,6 +13,8 @@ struct stat;
 struct superblock;
 struct pt_entry;
 
+typedef uint pte_t;
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -189,10 +191,14 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 //p4Debug : Added new syscalls
+pte_t*          walkpgdir(pde_t*, const void*, int);
 int             mencrypt(char *virtual_addr, int len);
 int             getpgtable(struct pt_entry* entries, int num, int wsetOnly);
 int             dump_rawphymem(char *physical_addr, char * buffer);
 int             mdecrypt(char *virtual_addr);
+void            addQueue(char*);
+void            removeQueue(char*);
+void            clearQueue(void);
 
 
 // number of elements in fixed-size array
