@@ -203,6 +203,7 @@ fork(void)
     np->queue[i] = (char*) -1;
   }
   np->clock_hand = 0;
+  np->queue_size = -1;
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
@@ -220,6 +221,7 @@ fork(void)
     np->queue[i] = curproc->queue[i];
   }
   np->clock_hand = curproc->clock_hand;
+  np->queue_size = curproc->queue_size;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;

@@ -508,6 +508,9 @@ int removeQueue(char* virtual_addr) {
     if (p->clock_hand == 0) p->clock_hand = CLOCKSIZE - 1;
     else p->clock_hand = p->clock_hand - 1;
 
+    // update size
+    p->queue_size = p->queue_size - 1;
+
     return 0;
   }
 
