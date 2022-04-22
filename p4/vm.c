@@ -446,21 +446,20 @@ void clearQueue(void) {
 
 void addQueue(char* virtual_addr) {
   struct proc* p = myproc();
-  //pte_t* pte = walkpgdir(p->pgdir, virtual_addr, 0);
   
   if (p->queue_size < CLOCKSIZE) { // if queue has space we just add
-    // add addr to the queue and update vars
+  
+      // add addr to the queue and update vars
     p->queue[p->clock_hand] = virtual_addr;
     p->clock_hand = (p->clock_hand + 1) % CLOCKSIZE;
     p->queue_size++;
 
-    //*pte = *pte | PTE_A;
   } else { // else queue has no space and we have to evict
     char* curr_addr = (char*) PGROUNDDOWN((uint) p->queue[p->clock_hand]);
     pte_t* curr_pte = walkpgdir(p->pgdir, curr_addr, 0);
 
     // find a victim page
-    while ( *curr_pte & PTE_A ) { 
+    while ( *curr_pte & PTE_A ) {
       // clear the access bit (cold state)      
       *curr_pte = *curr_pte & ~PTE_A;
 
@@ -476,10 +475,12 @@ void addQueue(char* virtual_addr) {
     mencrypt(curr_addr, 1);
     *curr_pte = *curr_pte & ~PTE_P;
     *curr_pte = *curr_pte | PTE_E;
-    *curr_pte = *curr_pte & ~PTE_A;
 
     // evict victim page and add new page
     p->queue[p->clock_hand] = virtual_addr;
+
+    // move hand
+    p->clock_hand = (p->clock_hand + 1) % CLOCKSIZE;
   }
 
   return;
@@ -494,9 +495,10 @@ int mdecrypt(char *virtual_addr) {
   //p4Debug: virtual_addr is a virtual address in this PID's userspace.
   cprintf("PRINT QUEUE (START): \n");
   for (int i = 0; i < CLOCKSIZE; i++) {
-    cprintf("    %p", myproc()->queue[i]);
-    cprintf("    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
-    cprintf("    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
+    cprintf("\tVA:    %p", myproc()->queue[i]);
+    cprintf("\t\t\tPTE:    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
+    cprintf("\t\tE bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_E);
+    cprintf("\t\tA bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
     cprintf("\n");
   }
   struct proc * p = myproc();
@@ -530,12 +532,13 @@ int mdecrypt(char *virtual_addr) {
 
   cprintf("PRINT QUEUE (END): \n");
   for (int i = 0; i < CLOCKSIZE; i++) {
-    cprintf("    %p", myproc()->queue[i]);
-    cprintf("    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
-    cprintf("    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
+    cprintf("\tVA:    %p", myproc()->queue[i]);
+    cprintf("\t\t\tPTE:    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
+    cprintf("\t\tE bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_E);
+    cprintf("\t\tA bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
     cprintf("\n");
   }
- 
+
   return 0;
 }
 
