@@ -163,21 +163,23 @@ int
 growproc(int n)
 {
   uint sz;
-  uint old_sz;
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
-  old_sz = sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+      return -1;
+    else if (mencrypt((char*) (sz-n), n / PGSIZE) != 0)
       return -1;
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
+    else
+      for (int i = 0; i < (-n / PGSIZE); i++)
+        if (removeQueue((char*) (sz-i*PGSIZE)) != 0) return -1;
   }
   curproc->sz = sz;
   switchuvm(curproc);
-  mencrypt((char*)old_sz, PGROUNDUP(n / PGSIZE));
   return 0;
 }
 
