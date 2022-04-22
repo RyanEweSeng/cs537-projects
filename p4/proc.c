@@ -114,7 +114,7 @@ found:
   
   // Set up for clock algorithm
   p->clock_hand = 0;
-  p->queue_size = 0;  
+  p->queue_size = -1;  
 
   return p;
 }

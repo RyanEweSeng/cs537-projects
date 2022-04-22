@@ -446,7 +446,7 @@ void clearQueue(void) {
 
 void addQueue(char* virtual_addr) {
   struct proc* p = myproc();
-  pte_t* pte = walkpgdir(p->pgdir, virtual_addr, 0);
+  //pte_t* pte = walkpgdir(p->pgdir, virtual_addr, 0);
   
   if (p->queue_size < CLOCKSIZE) { // if queue has space we just add
     // add addr to the queue and update vars
@@ -454,10 +454,9 @@ void addQueue(char* virtual_addr) {
     p->clock_hand = (p->clock_hand + 1) % CLOCKSIZE;
     p->queue_size++;
 
-    // set access bit
-    *pte = *pte | PTE_A;
+    //*pte = *pte | PTE_A;
   } else { // else queue has no space and we have to evict
-    char* curr_addr = p->queue[p->clock_hand];
+    char* curr_addr = (char*) PGROUNDDOWN((uint) p->queue[p->clock_hand]);
     pte_t* curr_pte = walkpgdir(p->pgdir, curr_addr, 0);
 
     // find a victim page
@@ -481,9 +480,6 @@ void addQueue(char* virtual_addr) {
 
     // evict victim page and add new page
     p->queue[p->clock_hand] = virtual_addr;
-
-    // set access bit
-    *pte = *pte | PTE_A;
   }
 
   return;
@@ -496,6 +492,13 @@ void removeQueue(char* virtual_addr) {
 int mdecrypt(char *virtual_addr) {
   cprintf("p4Debug:  mdecrypt VPN %d, %p, pid %d\n", PPN(virtual_addr), virtual_addr, myproc()->pid);
   //p4Debug: virtual_addr is a virtual address in this PID's userspace.
+  cprintf("PRINT QUEUE (START): \n");
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    cprintf("    %p", myproc()->queue[i]);
+    cprintf("    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
+    cprintf("    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
+    cprintf("\n");
+  }
   struct proc * p = myproc();
   pde_t* mypd = p->pgdir;
   //set the present bit to true and encrypt bit to false
@@ -525,6 +528,14 @@ int mdecrypt(char *virtual_addr) {
 
   addQueue(virtual_addr);
 
+  cprintf("PRINT QUEUE (END): \n");
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    cprintf("    %p", myproc()->queue[i]);
+    cprintf("    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
+    cprintf("    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
+    cprintf("\n");
+  }
+ 
   return 0;
 }
 
