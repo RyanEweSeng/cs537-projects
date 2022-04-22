@@ -209,6 +209,12 @@ fork(void)
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
+  // Copy clock queue to child
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    np->queue[i] = curproc->queue[i];
+  }
+  np->clock_hand = curproc->clock_hand;
+
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
