@@ -421,11 +421,33 @@ char* translate_and_set(pde_t *pgdir, char *uva) {
   return (char*)P2V(PTE_ADDR(*pte));
 }
 
-void addToQueue(char* virtual_addr) {
+int notInQueue(char* queue[], pte_t* pte) {
   struct proc* p = myproc();
-  pde_t* mypd = p->pgdir;
-  pte_t* pte = walkpgdir(mypd, virtual_addr, 0);
- 
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    pde_t* curr_pd = p->pgdir;
+    pte_t* curr_pte = walkpgdir(curr_pd, queue[i], 0);
+    
+    if (p->queue[i] != (char*) -1)  
+      if (*pte == *curr_pte)
+        return 0;
+  }
+
+  return 1;
+}
+
+void clearQueue(void) {
+  struct proc* p = myproc();
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    p->queue[i] = (char*) -1;
+  }
+
+  p->clock_hand = 0;
+}
+
+void addQueue(char* virtual_addr) {
+  struct proc* p = myproc();
+  pte_t* pte = walkpgdir(p->pgdir, virtual_addr, 0);
+  
   if (p->queue_size < CLOCKSIZE) { // if queue has space we just add
     // add addr to the queue and update vars
     p->queue[p->clock_hand] = virtual_addr;
@@ -435,11 +457,8 @@ void addToQueue(char* virtual_addr) {
     // set access bit
     *pte = *pte | PTE_A;
   } else { // else queue has no space and we have to evict
-    int i = p->clock_hand;
-
-    char* curr_addr = p->queue[i];
-    pde_t* curr_pd = p->pgdir;
-    pte_t* curr_pte = walkpgdir(curr_pd, curr_addr, 0);
+    char* curr_addr = p->queue[p->clock_hand];
+    pte_t* curr_pte = walkpgdir(p->pgdir, curr_addr, 0);
 
     // find a victim page
     while ( *curr_pte & PTE_A ) { 
@@ -447,19 +466,18 @@ void addToQueue(char* virtual_addr) {
       *curr_pte = *curr_pte & ~PTE_A;
 
       // move clock hand
-      i = (i + 1) % CLOCKSIZE;
-      p->clock_hand = i;
+      p->clock_hand = (p->clock_hand + 1) % CLOCKSIZE;
 
       // move to next entry in queue
-      curr_addr = p->queue[i];
-      curr_pd = p->pgdir;
-      curr_pte = walkpgdir(curr_pd, curr_addr, 0);
+      curr_addr = p->queue[p->clock_hand];
+      curr_pte = walkpgdir(p->pgdir, curr_addr, 0);
     }
 
     // encrypt victim page, clear P bit and set E bit (encrypted state)
     mencrypt(curr_addr, 1);
     *curr_pte = *curr_pte & ~PTE_P;
     *curr_pte = *curr_pte | PTE_E;
+    *curr_pte = *curr_pte & ~PTE_A;
 
     // evict victim page and add new page
     p->queue[i] = virtual_addr;
@@ -469,6 +487,11 @@ void addToQueue(char* virtual_addr) {
   }
 
   return;
+}
+
+void removeQueue(char* virtual_addr) {
+  struct proc* p = myproc();
+  // TODO
 }
 
 int mdecrypt(char *virtual_addr) {
@@ -501,7 +524,7 @@ int mdecrypt(char *virtual_addr) {
     slider++;
   }
 
-  addToQueue(virtual_addr);
+  addQueue(virtual_addr);
 
   return 0;
 }
@@ -578,7 +601,10 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
     if (!(*pte & PTE_U) || !(*pte & (PTE_P | PTE_E)))
       continue;
 
-    // TODO wsetOnly condition check
+    // wsetOnly condition check
+    if (wsetOnly && notInQueue(curproc->queue, pte)) {
+      continue;
+    }
 
     pt_entries[i].pdx = PDX(uva);
     pt_entries[i].ptx = PTX(uva);
@@ -588,7 +614,7 @@ int getpgtable(struct pt_entry* pt_entries, int num, int wsetOnly) {
     pt_entries[i].encrypted = (*pte & PTE_E) > 0;
     pt_entries[i].ref = (*pte & PTE_A) > 0;
     //PT_A flag needs to be modified as per clock algo.
-    i ++;
+    i++;
     if (uva == 0 || i == num) break;
 
   }
