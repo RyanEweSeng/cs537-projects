@@ -101,9 +101,16 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
 
-  // Encrypt pages (skipping the guard page)
-  mencrypt((char*)0, PGROUNDUP((sz-2*PGSIZE) / PGSIZE));
-  mencrypt((char*)sz-PGSIZE, PGROUNDUP(sz / PGSIZE));
+  // Clear clock queue
+  clearQueue();
+
+  // Encrypt only user pages (skipping the guard page)
+  for (int i = 0; i < sz; i += PGSIZE) {
+    pte_t* pte = walkpgdir(curproc->pgdir, (char*) i, 0);
+    if (*pte & PTE_U) {
+      mencrypt((char*) i, 1);
+    }
+  }
 
   freevm(oldpgdir);
   return 0;
