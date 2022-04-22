@@ -198,6 +198,12 @@ fork(void)
     return -1;
   }
 
+  // Clear child queue
+  for (int i = 0; i < CLOCKSIZE; i++) {
+    np->queue[i] = (char*) -1;
+  }
+  np->clock_hand = 0;
+
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
