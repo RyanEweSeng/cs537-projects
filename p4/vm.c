@@ -489,7 +489,6 @@ void addQueue(char* virtual_addr) {
 int removeQueue(char* virtual_addr) {
   struct proc* p = myproc();  
 
-  cprintf("before find index\n");
   // find the index to remove
   int location = -1;
   for (int i = 0; i < CLOCKSIZE; i++) {
@@ -505,8 +504,8 @@ int removeQueue(char* virtual_addr) {
 
     // clear entry and adjust clock hand
     p->queue[tail] = (char*) -1;
-    if (p->clock_hand == 0) p->clock_hand = CLOCKSIZE - 1;
-    else p->clock_hand = p->clock_hand - 1;
+    if (p->clock_hand == 0) p->clock_hand = CLOCKSIZE;
+    //else p->clock_hand = p->clock_hand;
 
     // update size
     p->queue_size = p->queue_size - 1;
@@ -521,10 +520,10 @@ int mdecrypt(char *virtual_addr) {
   cprintf("p4Debug:  mdecrypt VPN %d, %p, pid %d\n", PPN(virtual_addr), virtual_addr, myproc()->pid);
   //p4Debug: virtual_addr is a virtual address in this PID's userspace.
   cprintf("PRINT QUEUE (START): \n");
+  cprintf("\tCLOCK HAND: %d\n", myproc()->clock_hand);
   for (int i = 0; i < CLOCKSIZE; i++) {
     cprintf("\tVA:    %p", myproc()->queue[i]);
     cprintf("\t\t\tPTE:    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
-    cprintf("\t\tE bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_E);
     cprintf("\t\tA bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
     cprintf("\n");
   }
@@ -558,10 +557,10 @@ int mdecrypt(char *virtual_addr) {
   addQueue(virtual_addr);
 
   cprintf("PRINT QUEUE (END): \n");
+  cprintf("\tCLOCK HAND: %d\n", myproc()->clock_hand);
   for (int i = 0; i < CLOCKSIZE; i++) {
     cprintf("\tVA:    %p", myproc()->queue[i]);
     cprintf("\t\t\tPTE:    %x", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)));
-    cprintf("\t\tE bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_E);
     cprintf("\t\tA bit:    %d", *(walkpgdir(myproc()->pgdir, myproc()->queue[i], 0)) & PTE_A);
     cprintf("\n");
   }
