@@ -6,4 +6,4 @@
 * **project3a**: multi threaded mapreduce
 * **project3b**: xv6 kernel threads
 * **project4**: xv6 encrypted memory management
-* **project5**: network based system
+* **project5**: file based system
