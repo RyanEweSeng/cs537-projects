@@ -207,12 +207,12 @@ off_t locate_data_blocks( int ngroup, const struct ext2_group_desc *group      /
 
 void read_inode(fd, ngroup, offset, inode_no, inode)
      int                            fd;        /* the floppy disk file descriptor */
-	 int 							ngroup;
+     int                            ngroup;
      off_t 			   				offset;    /* offset to the start of the inode table */
      int                            inode_no;  /* the inode number to read  */
      struct ext2_inode             *inode;     /* where to put the inode */
 {
-        lseek(fd, offset + (inode_no-1)*sizeof(struct ext2_inode), SEEK_SET);
+        lseek(fd, BLOCK_OFFSET(blocks_per_group * ngroup) + offset + (inode_no-1)*sizeof(struct ext2_inode), SEEK_SET);
         read(fd, inode, sizeof(struct ext2_inode));
 }
 

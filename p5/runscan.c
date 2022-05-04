@@ -1,4 +1,9 @@
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include "ext2_fs.h"
 #include "read_ext2.h"
 
@@ -7,10 +12,23 @@ int main(int argc, char **argv) {
 		printf("expected usage: ./runscan inputfile outputfile\n");
 		exit(0);
 	}
+
+    // check if the output directory exists
+    if (opendir(argv[2])) {
+        printf("Error: output directory already exists\n");
+        exit(1);
+    }
+
+
+    // create output directory
+    if(mkdir(argv[2], 0755) == -1) {
+        printf("Error: creating directory failure\n");
+    }
 	
 	int fd;
 
-	fd = open(argv[1], O_RDONLY);    /* open disk image */
+    // open disk image
+	fd = open(argv[1], O_RDONLY);
 
 	ext2_read_init(fd);
 
@@ -22,39 +40,73 @@ int main(int argc, char **argv) {
 	read_group_desc(fd, 0, &group);
 	
 	printf("There are %u inodes in an inode table block and %u blocks in the idnode table\n", inodes_per_block, itable_blocks);
-	//iterate the first inode block
+	
+    //iterate the first inode block
 	off_t start_inode_table = locate_inode_table(0, &group);
-    for (unsigned int i = 0; i < inodes_per_block; i++) {
-            printf("inode %u: \n", i);
-            struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
-            read_inode(fd, 0, start_inode_table, i, inode);
-	    /* the maximum index of the i_block array should be computed from i_blocks / ((1024<<s_log_block_size)/512)
-			 * or once simplified, i_blocks/(2<<s_log_block_size)
-			 * https://www.nongnu.org/ext2-doc/ext2.html#i-blocks
-			 */
-			unsigned int i_blocks = inode->i_blocks/(2<<super.s_log_block_size);
-            printf("number of blocks %u\n", i_blocks);
-             printf("Is directory? %s \n Is Regular file? %s\n",
-                S_ISDIR(inode->i_mode) ? "true" : "false",
-                S_ISREG(inode->i_mode) ? "true" : "false");
-			
-			// print i_block numberss
-			for(unsigned int i=0; i<EXT2_N_BLOCKS; i++)
-			{       if (i < EXT2_NDIR_BLOCKS)                                 /* direct blocks */
-							printf("Block %2u : %u\n", i, inode->i_block[i]);
-					else if (i == EXT2_IND_BLOCK)                             /* single indirect block */
-							printf("Single   : %u\n", inode->i_block[i]);
-					else if (i == EXT2_DIND_BLOCK)                            /* double indirect block */
-							printf("Double   : %u\n", inode->i_block[i]);
-					else if (i == EXT2_TIND_BLOCK)                            /* triple indirect block */
-							printf("Triple   : %u\n", inode->i_block[i]);
+    for (unsigned int i = 0; i < 17; i++) {
+        printf("inode %u: \n", i);
+        
+        struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
+        read_inode(fd, 0, start_inode_table, i, inode);
+	    
+        // the maximum index of the i_block array should be computed from i_blocks / (2<<s_log_block_size)
+		unsigned int i_blocks = inode->i_blocks / (2<<super.s_log_block_size);
+        printf("number of blocks %u\n", i_blocks);
+        printf("Is directory? %s \n Is Regular file? %s\n", S_ISDIR(inode->i_mode) ? "true" : "false", S_ISREG(inode->i_mode) ? "true" : "false");
+	
+        // read inode and store in a buffer
+        char buf[1024];
+        lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
+        read(fd, buf, block_size);
 
-			}
-			
-            free(inode);
-
+        // check if file is a .jpg
+        int is_jpg = 0;
+        if (buf[0] == (char)0xff &&
+            buf[1] == (char)0xd8 &&
+            buf[2] == (char)0xff &&
+            (buf[3] == (char)0xe0 || buf[3] == (char)0xe1 || buf[3] == (char)0xe8))
+        {
+	        is_jpg = 1;
         }
 
+        // if it is a .jpg file, copy contents into an output file
+        if (is_jpg) {
+            // build output file path (i.e. output_dir/file-x.jpg) using snprintf from https://stackoverflow.com/questions/4881937/building-strings-from-variables-in-c
+            int digits = (i == 0) ? 1 : log10(i) + 1;
+            int filename_size = strlen(argv[2]) + strlen("/") + strlen("file-") + digits + strlen(".jpg") + 1;
+            char* filename = malloc(filename_size);
+            snprintf(filename, filename_size, "%s/file-%u.jpg", argv[2], i);
+
+            int file_ptr = open(filename, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+            
+            // get file size
+            uint file_size = inode->i_size;
+
+            // copy contents TODO
+            char file_buffer[file_size];
+
+            // write to file
+            write(file_ptr, file_buffer, file_size);
+            
+            //printf("%u is a jpg\n", i);
+        }
+
+    	// print i_block numbers
+	    for(unsigned int i=0; i<EXT2_N_BLOCKS; i++) {
+            if (i < EXT2_NDIR_BLOCKS)                                 // direct blocks
+                printf("Block %2u : %u\n", i, inode->i_block[i]);
+			else if (i == EXT2_IND_BLOCK)                             // single indirect block
+				printf("Single   : %u\n", inode->i_block[i]);
+			else if (i == EXT2_DIND_BLOCK)                            // double indirect block
+				printf("Double   : %u\n", inode->i_block[i]);
+			else if (i == EXT2_TIND_BLOCK)                            // triple indirect block
+				printf("Triple   : %u\n", inode->i_block[i]);
+		}
+			
+        free(inode);
+
+    }
 	
 	close(fd);
 }
+
