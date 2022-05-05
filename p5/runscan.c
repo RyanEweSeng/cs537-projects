@@ -91,24 +91,73 @@ int main(int argc, char **argv) {
 
             // iterate through all the direct blocks and copy the data
             for (uint curr_byte = 0; curr_byte < file_size && curr_byte < block_size*EXT2_NDIR_BLOCKS; curr_byte += block_size) {
-                // keep track of where we are in the current block
-                uint count = 0;
-                
-                // copy the block data and check if we are within the block and file_size
-                for (uint i = 0; i < block_size && curr_byte + i < file_size; i++) {
-                    file_data[curr_byte + i] = curr_block[i];
-                    count++;
-                }
-
-                // check if we reach the end of a block, then we move to the next block
-                if (curr_byte + i < file_size) {
-                    block_num++;
+                if (block_num == EXT2_IND_BLOCK) { // single indirect block
+                    // get indirect block
+                    char ind_block[block_size];
                     lseek(fd, BLOCK_OFFSET(inode->i_block[block_num]), SEEK_SET);
-                    read(fd, curr_block, block_size);
+                    read(fd, ind_block, block_size);
+
+                    // iterate through indirect block
+                    for (int i = 0; i < 256; i++) {
+                        char curr_ind_block[block_size];
+                        lseek(fd, BLOCK_OFFSET(ind_block[i]), SEEK_SET);
+                        read(fd, curr_ind_block, block_size);
+
+                        uint count = 0;
+                        for (uint i = 0; i < block_size && curr_byte + i < file_size; i++) {
+                            file_data[curr_byte + i] = curr_ind_block[i];
+                            count++;
+                        }
+
+                        if (curr_byte + i < file_size) continue;
+                        else break;
+                    }
+                } else if (block_num == EXT2_DIND_BLOCK) { // double indirect block
+                    char ind_block[block_size];
+                    lseek(fd, BLOCK_OFFSET(inode->i_block[block_num]), SEEK_SET);
+                    read(fd, ind_block, block_size);
+
+                    for (int i = 0; i < 256; i++) {
+                        char dind_block[block_size];
+                        lseek(fd, BLOCK_OFFSET(ind_block[i]), SEEK_SET);
+                        read(fd, dind_block, block_size);
+                        
+                        uint count = 0;
+
+                        for (int j = 0; j < 256; j++) {
+                            char curr_dind_block[block_size];
+                            lseek(fd, BLOCK_OFFSET(dind_block[j]), SEEK_SET);
+                            read(fd, curr_dind_block, block_size);
+
+                            for (uint i = 0; i < block_size && curr_byte + i < file_size; i++) {
+                                file_data[curr_byte + i] = curr_dind_block[i];
+                                count++;
+                            }
+
+                            if (curr_byte + count < file_size) continue;
+                            else break;
+                        }
+
+                        if (curr_byte + count < file_size) continue;
+                        else break;
+                    }
+                } else { // direct block
+                    // keep track of where we are in the current block
+                    uint count = 0;
+                    // copy the block data and check if we are within the block and file_size
+                    for (uint i = 0; i < block_size && curr_byte + i < file_size; i++) {
+                        file_data[curr_byte + i] = curr_block[i];
+                        count++;
+                    }
+
+                    // check if we reach the end of a block, then we move to the next block
+                    if (curr_byte + count < file_size) {
+                        block_num++;
+                        lseek(fd, BLOCK_OFFSET(inode->i_block[block_num]), SEEK_SET);
+                        read(fd, curr_block, block_size);
+                    }
                 }
             }
-
-            // TODO: how to deal with indirect blocks?
 
             // write to file
             write(file_ptr, file_data, file_size);
