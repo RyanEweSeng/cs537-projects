@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 	
     // iterate the first inode block
 	off_t start_inode_table = locate_inode_table(0, &group);
-    for (unsigned int i = 0; i < 14; i++) {
+    for (unsigned int i = 0; i < 15 /* inodes_per_group */; i++) {
         printf("inode %u: \n", i);
         
         struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
@@ -101,9 +101,6 @@ int main(int argc, char **argv) {
                     for (uint ind_curr_byte = curr_byte; ind_curr_byte < file_size; ) {
                         for (int i = 0; i < 256; i++) {
                             char curr_ind_block[block_size];
-
-                            printf("ind block %d:  %u\n", i, ind_block[i]);
-
                             lseek(fd, BLOCK_OFFSET(ind_block[i]), SEEK_SET);
                             read(fd, curr_ind_block, block_size);
 
@@ -124,9 +121,45 @@ int main(int argc, char **argv) {
 
                         curr_byte = ind_curr_byte;
                         block_num++;
+                        break;
                     }
                 } else if (block_num == EXT2_DIND_BLOCK) {
-                   break;
+                    uint ind_block[256];
+                    lseek(fd, BLOCK_OFFSET(inode->i_block[block_num]), SEEK_SET);
+                    read(fd, ind_block, block_size);
+
+                    for (uint dind_curr_byte = curr_byte; dind_curr_byte < file_size; ) {
+                        for (int i = 0; i < 256; i++) {
+                            uint curr_ind_block[256];
+                            lseek(fd, BLOCK_OFFSET(ind_block[i]), SEEK_SET);
+                            read(fd, curr_ind_block, block_size);
+
+                            for (int j = 0; j < 256; j++) {
+                                char curr_dind_block[block_size];
+                                lseek(fd, BLOCK_OFFSET(curr_ind_block[j]), SEEK_SET);
+                                read(fd, curr_dind_block, block_size);
+
+                                uint count = 0;
+                                for (uint k = 0; k < block_size && dind_curr_byte + k < file_size; k++) {
+                                    file_data[dind_curr_byte + k] = curr_dind_block[k];
+                                    count++;
+                                }
+
+                                if (dind_curr_byte + count < file_size) {
+                                    dind_curr_byte += count;
+                                    continue;
+                                } else {
+                                    dind_curr_byte += count;
+                                    break;
+                                }
+                            }
+                            
+                            if (dind_curr_byte < file_size) continue;
+                            else break;
+                        }
+                        curr_byte = dind_curr_byte;
+                        block_num++;
+                    }
                 } else { // direct block
                     // keep track of where we are in the current block
                     uint count = 0;
@@ -151,16 +184,16 @@ int main(int argc, char **argv) {
             write(file_ptr, file_data, file_size);
     
             // print i_block numbers
-	        for(unsigned int i=0; i<EXT2_N_BLOCKS; i++) {
-                if (i < EXT2_NDIR_BLOCKS)                                 // direct blocks
-                    printf("Block %2u : %u\n", i, inode->i_block[i]);
-		    	else if (i == EXT2_IND_BLOCK)                             // single indirect block
-		    		printf("Single   : %u\n", inode->i_block[i]);
-		    	else if (i == EXT2_DIND_BLOCK)                            // double indirect block
-			    	printf("Double   : %u\n", inode->i_block[i]);
-			    else if (i == EXT2_TIND_BLOCK)                            // triple indirect block
-				    printf("Triple   : %u\n", inode->i_block[i]);
-		    }
+	        //for(unsigned int i=0; i<EXT2_N_BLOCKS; i++) {
+            //    if (i < EXT2_NDIR_BLOCKS)                                 // direct blocks
+            //        printf("Block %2u : %u\n", i, inode->i_block[i]);
+		    //	else if (i == EXT2_IND_BLOCK)                             // single indirect block
+		    //		printf("Single   : %u\n", inode->i_block[i]);
+		    //	else if (i == EXT2_DIND_BLOCK)                            // double indirect block
+			//    	printf("Double   : %u\n", inode->i_block[i]);
+			//    else if (i == EXT2_TIND_BLOCK)                            // triple indirect block
+			//	    printf("Triple   : %u\n", inode->i_block[i]);
+		    //}
         }
 		
         free(inode);
