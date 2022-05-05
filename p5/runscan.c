@@ -90,45 +90,42 @@ int main(int argc, char **argv) {
             read(fd, curr_block, block_size);
 
             // iterate through all the direct blocks and copy the data
-            for (uint curr_byte = 0; curr_byte < file_size && curr_byte < block_size*EXT2_N_BLOCKS; ) {
+            for (uint curr_byte = 0; curr_byte < file_size; ) {
                 if (block_num == EXT2_IND_BLOCK) { // single indirect block
                     // get indirect block
-                    char ind_block[block_size];
+                    uint ind_block[256];
                     lseek(fd, BLOCK_OFFSET(inode->i_block[block_num]), SEEK_SET);
                     read(fd, ind_block, block_size);
 
-                    uint MAX_BLOCKS_IND = block_size * (EXT2_N_BLOCKS + 256);
-                    uint ind_curr_byte;
-
                     // iterate through indirect block
-                    for (int i = 0; i < 256; i++) {
-                        for (ind_curr_byte = curr_byte; ind_curr_byte < file_size && ind_curr_byte < MAX_BLOCKS_IND; ) {
+                    for (uint ind_curr_byte = curr_byte; ind_curr_byte < file_size; ) {
+                        for (int i = 0; i < 256; i++) {
                             char curr_ind_block[block_size];
+
+                            printf("ind block %d:  %u\n", i, ind_block[i]);
+
                             lseek(fd, BLOCK_OFFSET(ind_block[i]), SEEK_SET);
                             read(fd, curr_ind_block, block_size);
 
                             uint count = 0;
-                            for (uint i = 0; i < block_size && ind_curr_byte + i < file_size; i++) {
-                                file_data[ind_curr_byte + i] = curr_ind_block[i];
+                            for (uint j = 0; j < block_size && ind_curr_byte + j < file_size; j++) {
+                                file_data[ind_curr_byte + j] = curr_ind_block[j];
                                 count++;
                             }
                             
                             if (ind_curr_byte + count < file_size) {
                                 ind_curr_byte += count;
-                                printf("ind curr byte: %u\n", ind_curr_byte);
                                 continue;
                             } else {
                                 ind_curr_byte += count;
-                                printf("ind curr byte done: %u\n", ind_curr_byte);
-                                goto done;
+                                break;
                             }
                         }
-                    }
-                    
-                    done:
-                        curr_byte = ind_curr_byte;   
+
+                        curr_byte = ind_curr_byte;
                         block_num++;
-                } else if (block_num == EXT2_DIND_BLOCK){
+                    }
+                } else if (block_num == EXT2_DIND_BLOCK) {
                    break;
                 } else { // direct block
                     // keep track of where we are in the current block
@@ -146,9 +143,6 @@ int main(int argc, char **argv) {
                         read(fd, curr_block, block_size);
                     }
 
-                    //printf("curr byte  \t %u\n", curr_byte);
-                    //printf("count      \t %u\n", count);
-                    //printf("file size  \t %u\n", file_size);
                     curr_byte += count;
                 }
             }
