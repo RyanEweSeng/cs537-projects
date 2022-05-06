@@ -12,6 +12,12 @@ struct info {
     char name[EXT2_NAME_LEN];
 };
 
+typedef struct jpg_locations {
+    int size;
+    int capacity;
+    uint data[256];
+} Location;
+
 typedef struct names {
     int size;
     int capacity;
@@ -46,22 +52,46 @@ int main(int argc, char **argv) {
 	
 	// example read first the super-block and group-descriptor
 	read_super_block(fd, 0, &super);
+    printf("\n");
 	read_group_desc(fd, 0, &group);
-	
+    printf("\n");
+
 	//printf("There are %u inodes in an inode table block and %u blocks in the idnode table\n", inodes_per_block, itable_blocks);
     
     // declare the starting block (the first inode block)
 	off_t start_inode_table = locate_inode_table(0, &group);
+
+    // locate and store inodes of jpg files
+    Location* loc = malloc(sizeof(Location));
+    loc->size = 0;
+    loc->capacity = 256;
+    for (uint i = 0; i < inodes_per_group; i++) {
+        struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
+        read_inode(fd, 0, start_inode_table, i, inode);
+    
+        char buf[1024];
+        lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
+        read(fd, buf, block_size);
+
+        if (buf[0] == (char)0xff &&
+            buf[1] == (char)0xd8 &&
+            buf[2] == (char)0xff &&
+            (buf[3] == (char)0xe0 || buf[3] == (char)0xe1 || buf[3] == (char)0xe8))
+        {
+	        loc->data[loc->size] = i;
+            loc->size++;
+        }
+    }
 
     // declare names data array
     Names* names = malloc(sizeof(Names));
     names->size = 0;
     names->capacity = 256;
     for (uint i = 0; i < inodes_per_group; i++) {
-        struct ext2_inode* inode = malloc(sizeof(struct ext2_inode));
-        read_inode(fd, 0, start_inode_table, i, inode);
-
-        // check if is directory 
+         struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
+         read_inode(fd, 0, start_inode_table, i, inode);
+        
+         // check if is directory 
         if (S_ISDIR(inode->i_mode)) {
             //printf("Inode Number: %u\n", i); 
             
@@ -80,12 +110,16 @@ int main(int argc, char **argv) {
                 //name[name_len] = '\0';
                 //printf("offset: %u\tinode: %u\trec len: %u\tname len: %d\ttype: %u\tname: %s\n", offset, dir_entry->inode, dir_entry->rec_len, name_len, dir_entry->file_type, name);
 
-                // add name to the names struct
+                // add jpg filenames to the names struct
                 if (dir_entry->file_type == 1 && names->size < names->capacity) {
-                    names->arr[names->size].inode = dir_entry->inode;
-                    strncpy(names->arr[names->size].name, dir_entry->name, name_len);
-                    names->arr[names->size].name[name_len] = '\0';
-                    names->size++;                    
+                    for (int i = 0; i < 256; i++) {
+                        if (loc->data[i] == dir_entry->inode) {
+                            names->arr[names->size].inode = dir_entry->inode;
+                            strncpy(names->arr[names->size].name, dir_entry->name, name_len);
+                            names->arr[names->size].name[name_len] = '\0';
+                            names->size++;
+                        }
+                    }
                 }
 
                 // iterating condition
@@ -249,7 +283,7 @@ int main(int argc, char **argv) {
                     break;
                 }
             }
-            
+
             // write to file
             write(file_ptr, file_data, file_size);
 
@@ -268,6 +302,9 @@ int main(int argc, char **argv) {
 		
         free(inode);
     }
+
+    // print names
+    //for (int i = 0; i < 256; i++) printf("names inode: %u\tnames name: %s\n", names->arr[i].inode, names->arr[i].name);
 
 	close(fd);
 }
