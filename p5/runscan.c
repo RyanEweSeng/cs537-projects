@@ -81,6 +81,8 @@ int main(int argc, char **argv) {
 	        loc->data[loc->size] = i;
             loc->size++;
         }
+
+        free(inode);
     }
 
     // declare names data array
@@ -105,9 +107,9 @@ int main(int argc, char **argv) {
 
                 int name_len = dir_entry->name_len & 0xFF;
                 
-                //char name[EXT2_NAME_LEN];
-                //strncpy(name, dir_entry->name, name_len);
-                //name[name_len] = '\0';
+                char name[EXT2_NAME_LEN];
+                strncpy(name, dir_entry->name, name_len);
+                name[name_len] = '\0';
                 //printf("offset: %u\tinode: %u\trec len: %u\tname len: %d\ttype: %u\tname: %s\n", offset, dir_entry->inode, dir_entry->rec_len, name_len, dir_entry->file_type, name);
 
                 // add jpg filenames to the names struct
@@ -128,11 +130,12 @@ int main(int argc, char **argv) {
                 offset = offset + 4 + 2 + 2 + delta; 
             }
         }
+        
+        free(inode);
     }
 
     for (unsigned int i = 0; i < inodes_per_group; i++) {
         //printf("inode %u: \n", i);
-        
         struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
         read_inode(fd, 0, start_inode_table, i, inode);
 	    
@@ -170,7 +173,7 @@ int main(int argc, char **argv) {
             uint file_size = inode->i_size;
 
             // store jpg image data in an array for write()
-            char file_data[file_size];
+            char* file_data = malloc(file_size);
 
             // initialize the current block we are going to copy
             char curr_block[block_size];
@@ -268,7 +271,7 @@ int main(int argc, char **argv) {
                     curr_byte += count;
                 }
             }
-           
+
             // match original filename 
             for (int idx = 0; idx < names->capacity; idx++) {
                 if (i == names->arr[idx].inode) {
@@ -298,6 +301,8 @@ int main(int argc, char **argv) {
 			//    else if (i == EXT2_TIND_BLOCK)                            // triple indirect block
 			//	    printf("Triple   : %u\n", inode->i_block[i]);
 		    //}
+            
+            free(file_data);
         }
 		
         free(inode);
