@@ -7,6 +7,17 @@
 #include "ext2_fs.h"
 #include "read_ext2.h"
 
+struct info {
+    __u32 inode;
+    char name[EXT2_NAME_LEN];
+};
+
+typedef struct names {
+    int size;
+    int capacity;
+    struct info arr[256];
+} Names;
+
 int main(int argc, char **argv) {
 	if (argc != 3) {
 		printf("expected usage: ./runscan inputfile outputfile\n");
@@ -38,20 +49,64 @@ int main(int argc, char **argv) {
 	read_group_desc(fd, 0, &group);
 	
 	//printf("There are %u inodes in an inode table block and %u blocks in the idnode table\n", inodes_per_block, itable_blocks);
-	
-    // iterate the first inode block
+    
+    // declare the starting block (the first inode block)
 	off_t start_inode_table = locate_inode_table(0, &group);
-    for (unsigned int i = 0; i < 15 /* inodes_per_group */; i++) {
-        printf("inode %u: \n", i);
+
+    // declare names data array
+    Names* names = malloc(sizeof(Names));
+    names->size = 0;
+    names->capacity = 256;
+    for (uint i = 0; i < inodes_per_group; i++) {
+        struct ext2_inode* inode = malloc(sizeof(struct ext2_inode));
+        read_inode(fd, 0, start_inode_table, i, inode);
+
+        // check if is directory 
+        if (S_ISDIR(inode->i_mode)) {
+            //printf("Inode Number: %u\n", i); 
+            
+            // get directory block
+            char dirbuf[block_size];
+            lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
+            read(fd, dirbuf, block_size);
+            
+            for (uint offset = 0; offset < block_size; ) {
+                struct ext2_dir_entry_2* dir_entry = (struct ext2_dir_entry_2*) & (dirbuf[offset]);
+
+                int name_len = dir_entry->name_len & 0xFF;
+                
+                //char name[EXT2_NAME_LEN];
+                //strncpy(name, dir_entry->name, name_len);
+                //name[name_len] = '\0';
+                //printf("offset: %u\tinode: %u\trec len: %u\tname len: %d\ttype: %u\tname: %s\n", offset, dir_entry->inode, dir_entry->rec_len, name_len, dir_entry->file_type, name);
+
+                // add name to the names struct
+                if (dir_entry->file_type == 1 && names->size < names->capacity) {
+                    names->arr[names->size].inode = dir_entry->inode;
+                    strncpy(names->arr[names->size].name, dir_entry->name, name_len);
+                    names->arr[names->size].name[name_len] = '\0';
+                    names->size++;                    
+                }
+
+                // iterating condition
+                int delta = name_len;
+                while (delta != 0 && delta % 4 != 0) delta++;
+                offset = offset + 4 + 2 + 2 + delta; 
+            }
+        }
+    }
+
+    for (unsigned int i = 0; i < inodes_per_group; i++) {
+        //printf("inode %u: \n", i);
         
         struct ext2_inode *inode = malloc(sizeof(struct ext2_inode));
         read_inode(fd, 0, start_inode_table, i, inode);
 	    
         // the maximum index of the i_block array should be computed from i_blocks / (2<<s_log_block_size)
-		unsigned int i_blocks = inode->i_blocks / (2<<super.s_log_block_size);
-        printf("number of blocks %u\n", i_blocks);
-        printf("Is directory? %s \tIs Regular file? %s\n", S_ISDIR(inode->i_mode) ? "true" : "false", S_ISREG(inode->i_mode) ? "true" : "false");
-	
+		//unsigned int i_blocks = inode->i_blocks / (2<<super.s_log_block_size);
+        //printf("number of blocks %u\n", i_blocks);
+        //printf("Is directory? %s \tIs Regular file? %s\n", S_ISDIR(inode->i_mode) ? "true" : "false", S_ISREG(inode->i_mode) ? "true" : "false");
+
         // read inode and store in a buffer
         char buf[1024];
         lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
@@ -179,10 +234,25 @@ int main(int argc, char **argv) {
                     curr_byte += count;
                 }
             }
+           
+            // match original filename 
+            for (int idx = 0; idx < names->capacity; idx++) {
+                if (i == names->arr[idx].inode) {
+                    // get original filename
+                    int orig_filename_size = strlen(argv[2]) + strlen("/") + strlen(names->arr[idx].name) + 1;
+                    char* orig_filename = malloc(orig_filename_size);
+                    snprintf(orig_filename, orig_filename_size, "%s/%s", argv[2], names->arr[idx].name);
+                    
+                    int orig_file_ptr = open(orig_filename, O_WRONLY | O_TRUNC | O_CREAT, 0666);
 
+                    write(orig_file_ptr, file_data, file_size);
+                    break;
+                }
+            }
+            
             // write to file
             write(file_ptr, file_data, file_size);
-    
+
             // print i_block numbers
 	        //for(unsigned int i=0; i<EXT2_N_BLOCKS; i++) {
             //    if (i < EXT2_NDIR_BLOCKS)                                 // direct blocks
@@ -198,7 +268,7 @@ int main(int argc, char **argv) {
 		
         free(inode);
     }
-	
+
 	close(fd);
 }
 
